@@ -29,7 +29,7 @@ class Generator {
     } else if (_paperSize == PaperSize.mm72) {
       return (font == null || font == PosFontType.fontA) ? 42 : 56;
     } else {
-      return (font == null || font == PosFontType.fontA) ? 48 : 64;
+      return (font == null || font == PosFontType.fontA) ? 42 : 56;
     }
   }
 
@@ -351,6 +351,7 @@ class Generator {
     int? maxCharsPerLine,
   }) {
     List<int> bytes = [];
+    bytes += setStyles(const PosStyles().copyWith(align: styles.align));
     if (!containsChinese) {
       bytes += _text(
         _encode(text, isKanji: containsChinese),
