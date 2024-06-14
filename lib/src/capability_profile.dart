@@ -13,7 +13,7 @@ class CapabilityProfile {
   /// Public factory
   static Future<CapabilityProfile> load({String name = 'default'}) async {
     final content = await rootBundle.loadString(
-        'packages/flutter_esc_pos_utils/resources/capabilities.json');
+        'packages/esc_pos_utils_pro/resources/capabilities.json');
     Map capabilities = json.decode(content);
 
     var profile = capabilities['profiles'][name];
