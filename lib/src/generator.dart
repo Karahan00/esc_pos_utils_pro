@@ -3,7 +3,7 @@ import 'dart:typed_data' show Uint8List;
 import 'package:hex/hex.dart';
 import 'package:image_v3/image_v3.dart';
 import 'package:gbk_codec/gbk_codec.dart';
-import 'package:flutter_esc_pos_utils_image_3/flutter_esc_pos_utils_image_3.dart';
+import 'package:flutter_esc_pos_utils_image_3/esc_pos_utils_pro.dart';
 import 'commands.dart';
 
 class Generator {
