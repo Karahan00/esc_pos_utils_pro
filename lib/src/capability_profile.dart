@@ -48,7 +48,7 @@ class CapabilityProfile {
 
   static Future<List<dynamic>> getAvailableProfiles() async {
     final content = await rootBundle.loadString(
-        'packages/flutter_esc_pos_utils/resources/capabilities.json');
+        'packages/esc_pos_utils_pro/resources/capabilities.json');
     Map capabilities = json.decode(content);
 
     var profiles = capabilities['profiles'];
