@@ -5,21 +5,26 @@ import 'package:image_v3/image_v3.dart';
 import 'package:gbk_codec/gbk_codec.dart';
 import '../esc_pos_utils_pro.dart';
 import 'commands.dart';
+import 'dart:convert';
+import 'dart:typed_data' show Uint8List;
+import 'package:flutter/services.dart';
+import 'commands.dart';
 
 class Generator {
   Generator(this._paperSize, this._profile,
       {this.spaceBetweenRows = 5, this.codec = latin1});
 
-  // Ticket config
+  /// Ticket config
   final PaperSize _paperSize;
   CapabilityProfile _profile;
   int? _maxCharsPerLine;
-  // Global styles
+
+  /// Global styles
   String? _codeTable;
   PosFontType? _font;
   // Current styles
   final Codec codec;
-  PosStyles _styles = PosStyles();
+  PosStyles _styles = const PosStyles();
   int spaceBetweenRows;
 
   // ************************ Internal helpers ************************
@@ -136,22 +141,29 @@ class Generator {
     final int widthPx = (image.width + lineHeight) - (image.width % lineHeight);
     final int heightPx = image.height;
 
-    // Create a black bottom layer
-    final biggerImage = copyResize(image,
-        width: widthPx, height: heightPx, interpolation: Interpolation.linear);
-    fill(biggerImage, 0);
-    // Insert source image into bigger one
+    // Create a bigger image with the desired dimensions
+    final Image biggerImage = Image(widthPx, heightPx);
+
+    // Fill the bigger image with a color (in this case, black)
+    fill(biggerImage, getColor(0, 0, 0, 255));
+
+    // Insert the source image into the bigger one
     drawImage(biggerImage, image, dstX: 0, dstY: 0);
 
     int left = 0;
-    final List<List<int>> blobs = [];
+    final List<Uint8List> blobs = [];
 
     while (left < widthPx) {
+      // Copy a slice of the bigger image
       final Image slice = copyCrop(biggerImage, left, 0, lineHeight, heightPx);
-      final Uint8List bytes = slice.getBytes(format: Format.luminance);
+
+      // Get the bytes of the slice in BGR order
+      final Uint8List bytes = Uint8List.fromList(encodePng(slice));
       blobs.add(bytes);
+
       left += lineHeight;
     }
+
 
     return blobs;
   }
@@ -570,35 +582,29 @@ class Generator {
 
   /// Print an image using (ESC *) command
   ///
-  /// [image] is an instance of class from [Image library](https://pub.dev/packages/image)
-  List<int> image(Image imgSrc,
-      {PosAlign align = PosAlign.center, bool isDoubleDensity = true}) {
+  /// [image] is an instanse of class from [Image library](https://pub.dev/packages/image)
+  List<int> image(
+      Image imgSrc, {
+        PosAlign align = PosAlign.center,
+        bool highDensityHorizontal = true,
+        bool highDensityVertical = true,
+      }) {
     List<int> bytes = [];
     // Image alignment
     bytes += setStyles(const PosStyles().copyWith(align: align));
 
-    Image image;
-    if (!isDoubleDensity) {
-      int size = 558 ~/ 2;
-      if (_paperSize == PaperSize.mm58) {
-        size = 375 ~/ 2;
-      } else if (_paperSize == PaperSize.mm72) {
-        size = 503 ~/ 2;
-      }
-
-      image =
-          copyResize(imgSrc, width: size, interpolation: Interpolation.linear);
-    } else {
-      image = Image.from(imgSrc); // make a copy
-    }
-    bool highDensityHorizontal = isDoubleDensity;
-    bool highDensityVertical = isDoubleDensity;
+    final Image image = Image.from(imgSrc); // make a copy
 
     invert(image);
+    // flip(image, Flip.horizontal);
     flip(image, Flip.horizontal);
-    final Image imageRotated = copyRotate(image, 270);
+    // final Image imageRotated = copyRotate(image, 270);
+    final Image imageRotated =
+    copyRotate(image, 270, interpolation: Interpolation.nearest);
 
-    int lineHeight = highDensityVertical ? 3 : 1;
+    final int lineHeight = highDensityVertical ? 3 : 1;
+
+    /// const int lineHeight = 3;
     final List<List<int>> blobs = _toColumnFormat(imageRotated, lineHeight * 8);
 
     // Compress according to line density
@@ -610,15 +616,19 @@ class Generator {
     }
 
     final int heightPx = imageRotated.height;
-    int densityByte =
-        (highDensityHorizontal ? 1 : 0) + (highDensityVertical ? 32 : 0);
+    final int densityByte = (highDensityHorizontal ? 1 : 0) + (highDensityVertical ? 32 : 0);
 
     final List<int> header = List.from(cBitImg.codeUnits);
     header.add(densityByte);
     header.addAll(_intLowHigh(heightPx, 2));
 
+    // Image alignment
+    bytes += latin1.encode(align == PosAlign.left
+        ? cAlignLeft
+        : (align == PosAlign.center ? cAlignCenter : cAlignRight));
+
     // Adjust line spacing (for 16-unit line feeds): ESC 3 0x10 (HEX: 0x1b 0x33 0x10)
-    bytes += [27, 51, 0];
+    bytes += [27, 51, 16];
     for (int i = 0; i < blobs.length; ++i) {
       bytes += List.from(header)
         ..addAll(blobs[i])
