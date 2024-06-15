@@ -7,7 +7,8 @@ import '../esc_pos_utils_pro.dart';
 import 'commands.dart';
 
 class Generator {
-  Generator(this._paperSize, this._profile, {this.spaceBetweenRows = 5});
+  Generator(this._paperSize, this._profile,
+      {this.spaceBetweenRows = 5, this.codec = latin1});
 
   // Ticket config
   final PaperSize _paperSize;
@@ -17,6 +18,7 @@ class Generator {
   String? _codeTable;
   PosFontType? _font;
   // Current styles
+  final Codec codec;
   PosStyles _styles = PosStyles();
   int spaceBetweenRows;
 
@@ -62,10 +64,10 @@ class Generator {
         .replaceAll("’", "'")
         .replaceAll("´", "'")
         .replaceAll("»", '"')
-        .replaceAll(" ", ' ')
+        .replaceAll(" ", ' ')
         .replaceAll("•", '.');
     if (!isKanji) {
-      return latin1.encode(text);
+      return codec.encode(text);
     } else {
       return Uint8List.fromList(gbk_bytes.encode(text));
     }
@@ -216,7 +218,7 @@ class Generator {
   List<int> reset() {
     List<int> bytes = [];
     bytes += cInit.codeUnits;
-    _styles = PosStyles();
+    _styles = const PosStyles();
     bytes += setGlobalCodeTable(_codeTable);
     bytes += setGlobalFont(_font);
     return bytes;
@@ -258,7 +260,7 @@ class Generator {
   List<int> setStyles(PosStyles styles, {bool isKanji = false}) {
     List<int> bytes = [];
     if (styles.align != _styles.align) {
-      bytes += latin1.encode(styles.align == PosAlign.left
+      bytes += codec.encode(styles.align == PosAlign.left
           ? cAlignLeft
           : (styles.align == PosAlign.center ? cAlignCenter : cAlignRight));
       _styles = _styles.copyWith(align: styles.align);
@@ -469,7 +471,7 @@ class Generator {
 
     for (int i = 0; i < cols.length; ++i) {
       int colInd =
-          cols.sublist(0, i).fold(0, (int sum, col) => sum + col.width);
+      cols.sublist(0, i).fold(0, (int sum, col) => sum + col.width);
       double charWidth = _getCharWidth(cols[i].styles);
       double fromPos = _colIndToPosition(colInd);
       final double toPos =
@@ -488,7 +490,7 @@ class Generator {
           if (realCharactersNb > maxCharactersNb) {
             // Print max possible and split to the next row
             Uint8List encodedToPrintNextRow =
-                encodedToPrint.sublist(maxCharactersNb);
+            encodedToPrint.sublist(maxCharactersNb);
             encodedToPrint = encodedToPrint.sublist(0, maxCharactersNb);
             isNextRow = true;
             nextRow.add(PosColumn(
@@ -573,7 +575,7 @@ class Generator {
       {PosAlign align = PosAlign.center, bool isDoubleDensity = true}) {
     List<int> bytes = [];
     // Image alignment
-    bytes += setStyles(PosStyles().copyWith(align: align));
+    bytes += setStyles(const PosStyles().copyWith(align: align));
 
     Image image;
     if (!isDoubleDensity) {
@@ -639,7 +641,7 @@ class Generator {
       }) {
     List<int> bytes = [];
     // Image alignment
-    bytes += setStyles(PosStyles().copyWith(align: align));
+    bytes += setStyles(const PosStyles().copyWith(align: align));
 
     final int widthPx = image.width;
     final int heightPx = image.height;
@@ -682,16 +684,16 @@ class Generator {
   /// [height] range: 1 - 255. The units depend on the printer model.
   /// Width, height, font, text position settings are effective until performing of ESC @, reset or power-off.
   List<int> barcode(
-    Barcode barcode, {
-    int? width,
-    int? height,
-    BarcodeFont? font,
-    BarcodeText textPos = BarcodeText.below,
-    PosAlign align = PosAlign.center,
-  }) {
+      Barcode barcode, {
+        int? width,
+        int? height,
+        BarcodeFont? font,
+        BarcodeText textPos = BarcodeText.below,
+        PosAlign align = PosAlign.center,
+      }) {
     List<int> bytes = [];
     // Set alignment
-    bytes += setStyles(PosStyles().copyWith(align: align));
+    bytes += setStyles(const PosStyles().copyWith(align: align));
 
     // Set text position
     bytes += cBarcodeSelectPos.codeUnits + [textPos.value];
@@ -724,14 +726,14 @@ class Generator {
 
   /// Print a QR Code
   List<int> qrcode(
-    String text, {
-    PosAlign align = PosAlign.center,
-    QRSize size = QRSize.Size4,
-    QRCorrection cor = QRCorrection.L,
-  }) {
+      String text, {
+        PosAlign align = PosAlign.center,
+        QRSize size = QRSize.Size4,
+        QRCorrection cor = QRCorrection.L,
+      }) {
     List<int> bytes = [];
     // Set alignment
-    bytes += setStyles(PosStyles().copyWith(align: align));
+    bytes += setStyles(const PosStyles().copyWith(align: align));
     QRCode qr = QRCode(text, size, cor);
     bytes += qr.bytes;
     return bytes;
@@ -770,11 +772,11 @@ class Generator {
   }
 
   List<int> textEncoded(
-    Uint8List textBytes, {
-    PosStyles styles = const PosStyles(),
-    int linesAfter = 0,
-    int? maxCharsPerLine,
-  }) {
+      Uint8List textBytes, {
+        PosStyles styles = const PosStyles(),
+        int linesAfter = 0,
+        int? maxCharsPerLine,
+      }) {
     List<int> bytes = [];
     bytes += _text(textBytes, styles: styles, maxCharsPerLine: maxCharsPerLine);
     // Ensure at least one line break after the text
@@ -788,17 +790,17 @@ class Generator {
   ///
   /// [colInd] range: 0..11. If null: do not define the position
   List<int> _text(
-    Uint8List textBytes, {
-    PosStyles styles = const PosStyles(),
-    int? colInd = 0,
-    bool isKanji = false,
-    int colWidth = 12,
-    int? maxCharsPerLine,
-  }) {
+      Uint8List textBytes, {
+        PosStyles styles = const PosStyles(),
+        int? colInd = 0,
+        bool isKanji = false,
+        int colWidth = 12,
+        int? maxCharsPerLine,
+      }) {
     List<int> bytes = [];
     if (colInd != null) {
       double charWidth =
-          _getCharWidth(styles, maxCharsPerLine: maxCharsPerLine);
+      _getCharWidth(styles, maxCharsPerLine: maxCharsPerLine);
       double fromPos = _colIndToPosition(colInd);
 
       // Align
@@ -835,11 +837,11 @@ class Generator {
 
   /// Prints one line of styled mixed (chinese and latin symbols) text
   List<int> _mixedKanji(
-    String text, {
-    PosStyles styles = const PosStyles(),
-    int linesAfter = 0,
-    int? maxCharsPerLine,
-  }) {
+      String text, {
+        PosStyles styles = const PosStyles(),
+        int linesAfter = 0,
+        int? maxCharsPerLine,
+      }) {
     List<int> bytes = [];
     final list = _getLexemes(text);
     final List<String> lexemes = list[0];
