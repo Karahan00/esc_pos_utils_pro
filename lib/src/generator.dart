@@ -1,13 +1,17 @@
 import 'dart:convert';
 import 'dart:typed_data' show Uint8List;
 import 'package:hex/hex.dart';
-import 'package:image_v3/image_v3.dart';
 import 'package:gbk_codec/gbk_codec.dart';
 import '../esc_pos_utils_pro.dart';
 import 'commands.dart';
 import 'dart:convert';
 import 'dart:typed_data' show Uint8List;
 import 'package:flutter/services.dart';
+import 'commands.dart';
+
+import 'dart:convert';
+import 'dart:typed_data' show Uint8List;
+import 'package:image/image.dart';
 import 'commands.dart';
 
 class Generator {
@@ -69,7 +73,7 @@ class Generator {
         .replaceAll("’", "'")
         .replaceAll("´", "'")
         .replaceAll("»", '"')
-        .replaceAll(" ", ' ')
+        .replaceAll(" ", ' ')
         .replaceAll("•", '.');
     if (!isKanji) {
       return codec.encode(text);
@@ -141,29 +145,24 @@ class Generator {
     final int widthPx = (image.width + lineHeight) - (image.width % lineHeight);
     final int heightPx = image.height;
 
-    // Create a bigger image with the desired dimensions
-    final Image biggerImage = Image(widthPx, heightPx);
-
-    // Fill the bigger image with a color (in this case, black)
-    fill(biggerImage, getColor(0, 0, 0, 255));
-
-    // Insert the source image into the bigger one
-    drawImage(biggerImage, image, dstX: 0, dstY: 0);
+    // Create a black bottom layer
+    final biggerImage = copyResize(image, width: widthPx, height: heightPx);
+    fill(biggerImage, color: ColorRgb8(0, 0, 0));
+    // Insert source image into bigger one
+    compositeImage(biggerImage, image, dstX: 0, dstY: 0);
 
     int left = 0;
-    final List<Uint8List> blobs = [];
+    final List<List<int>> blobs = [];
 
     while (left < widthPx) {
-      // Copy a slice of the bigger image
-      final Image slice = copyCrop(biggerImage, left, 0, lineHeight, heightPx);
-
-      // Get the bytes of the slice in BGR order
-      final Uint8List bytes = Uint8List.fromList(encodePng(slice));
+      final Image slice = copyCrop(biggerImage,
+          x: left, y: 0, width: lineHeight, height: heightPx);
+      grayscale(slice);
+      final imgBinary = slice.convert(numChannels: 1);
+      final Uint8List bytes = imgBinary.getBytes();
       blobs.add(bytes);
-
       left += lineHeight;
     }
-
 
     return blobs;
   }
@@ -179,7 +178,7 @@ class Generator {
 
     // R/G/B channels are same -> keep only one channel
     final List<int> oneChannelBytes = [];
-    final List<int> buffer = image.getBytes(format: Format.rgba);
+    final List<int> buffer = image.getBytes(order: ChannelOrder.rgba);
     for (int i = 0; i < buffer.length; i += 4) {
       oneChannelBytes.add(buffer[i]);
     }
@@ -582,29 +581,21 @@ class Generator {
 
   /// Print an image using (ESC *) command
   ///
-  /// [image] is an instanse of class from [Image library](https://pub.dev/packages/image)
-  List<int> image(
-      Image imgSrc, {
-        PosAlign align = PosAlign.center,
-        bool highDensityHorizontal = true,
-        bool highDensityVertical = true,
-      }) {
+  /// [image] is an instance of class from [Image library](https://pub.dev/packages/image)
+  List<int> image(Image imgSrc, {PosAlign align = PosAlign.center}) {
     List<int> bytes = [];
     // Image alignment
     bytes += setStyles(const PosStyles().copyWith(align: align));
 
     final Image image = Image.from(imgSrc); // make a copy
+    const bool highDensityHorizontal = true;
+    const bool highDensityVertical = true;
 
     invert(image);
-    // flip(image, Flip.horizontal);
-    flip(image, Flip.horizontal);
-    // final Image imageRotated = copyRotate(image, 270);
-    final Image imageRotated =
-    copyRotate(image, 270, interpolation: Interpolation.nearest);
+    flip(image, direction: FlipDirection.horizontal);
+    final Image imageRotated = copyRotate(image, angle: 270);
 
-    final int lineHeight = highDensityVertical ? 3 : 1;
-
-    /// const int lineHeight = 3;
+    const int lineHeight = highDensityVertical ? 3 : 1;
     final List<List<int>> blobs = _toColumnFormat(imageRotated, lineHeight * 8);
 
     // Compress according to line density
@@ -616,16 +607,12 @@ class Generator {
     }
 
     final int heightPx = imageRotated.height;
-    final int densityByte = (highDensityHorizontal ? 1 : 0) + (highDensityVertical ? 32 : 0);
+    const int densityByte =
+        (highDensityHorizontal ? 1 : 0) + (highDensityVertical ? 32 : 0);
 
     final List<int> header = List.from(cBitImg.codeUnits);
     header.add(densityByte);
     header.addAll(_intLowHigh(heightPx, 2));
-
-    // Image alignment
-    bytes += latin1.encode(align == PosAlign.left
-        ? cAlignLeft
-        : (align == PosAlign.center ? cAlignCenter : cAlignRight));
 
     // Adjust line spacing (for 16-unit line feeds): ESC 3 0x10 (HEX: 0x1b 0x33 0x10)
     bytes += [27, 51, 16];
