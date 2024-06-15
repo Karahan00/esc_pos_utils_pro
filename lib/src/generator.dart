@@ -68,7 +68,7 @@ class Generator {
         .replaceAll("•", '.');
     if (!isKanji) {
       if(text.contains("€")) {
-        return utf8.encode(text);
+        return ascii.encode(text);
       }
       else {
         return codec.encode(text);
