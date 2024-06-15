@@ -7,8 +7,7 @@ import '../esc_pos_utils_pro.dart';
 import 'commands.dart';
 
 class Generator {
-  Generator(this._paperSize, this._profile,
-      {this.spaceBetweenRows = 5, this.codec = latin1});
+  Generator(this._paperSize, this._profile, {this.spaceBetweenRows = 5});
 
   // Ticket config
   final PaperSize _paperSize;
@@ -19,15 +18,12 @@ class Generator {
   PosFontType? _font;
   // Current styles
   PosStyles _styles = PosStyles();
-  final Codec codec;
   int spaceBetweenRows;
 
   // ************************ Internal helpers ************************
   int _getMaxCharsPerLine(PosFontType? font) {
     if (_paperSize == PaperSize.mm58) {
       return (font == null || font == PosFontType.fontA) ? 32 : 42;
-    } else if (_paperSize == PaperSize.mm72) {
-      return (font == null || font == PosFontType.fontA) ? 42 : 56;
     } else {
       return (font == null || font == PosFontType.fontA) ? 42 : 56;
     }
@@ -66,10 +62,10 @@ class Generator {
         .replaceAll("’", "'")
         .replaceAll("´", "'")
         .replaceAll("»", '"')
-        .replaceAll(" ", ' ')
+        .replaceAll(" ", ' ')
         .replaceAll("•", '.');
     if (!isKanji) {
-      return codec.encode(text);
+      return latin1.encode(text);
     } else {
       return Uint8List.fromList(gbk_bytes.encode(text));
     }
@@ -211,7 +207,7 @@ class Generator {
   /// Replaces a single bit in a 32-bit unsigned integer.
   int _transformUint32Bool(int uint32, int shift, bool newValue) {
     return ((0xFFFFFFFF ^ (0x1 << shift)) & uint32) |
-        ((newValue ? 1 : 0) << shift);
+    ((newValue ? 1 : 0) << shift);
   }
   // ************************ (end) Internal helpers  ************************
 
@@ -262,7 +258,7 @@ class Generator {
   List<int> setStyles(PosStyles styles, {bool isKanji = false}) {
     List<int> bytes = [];
     if (styles.align != _styles.align) {
-      bytes += codec.encode(styles.align == PosAlign.left
+      bytes += latin1.encode(styles.align == PosAlign.left
           ? cAlignLeft
           : (styles.align == PosAlign.center ? cAlignCenter : cAlignRight));
       _styles = _styles.copyWith(align: styles.align);
@@ -282,7 +278,7 @@ class Generator {
     }
     if (styles.underline != _styles.underline) {
       bytes +=
-          styles.underline ? cUnderline1dot.codeUnits : cUnderlineOff.codeUnits;
+      styles.underline ? cUnderline1dot.codeUnits : cUnderlineOff.codeUnits;
       _styles = _styles.copyWith(underline: styles.underline);
     }
 
@@ -344,12 +340,12 @@ class Generator {
   }
 
   List<int> text(
-    String text, {
-    PosStyles styles = const PosStyles(),
-    int linesAfter = 0,
-    bool containsChinese = false,
-    int? maxCharsPerLine,
-  }) {
+      String text, {
+        PosStyles styles = const PosStyles(),
+        int linesAfter = 0,
+        bool containsChinese = false,
+        int? maxCharsPerLine,
+      }) {
     List<int> bytes = [];
     bytes += setStyles(const PosStyles().copyWith(align: styles.align));
     if (!containsChinese) {
@@ -635,12 +631,12 @@ class Generator {
   ///
   /// [image] is an instanse of class from [Image library](https://pub.dev/packages/image)
   List<int> imageRaster(
-    Image image, {
-    PosAlign align = PosAlign.center,
-    bool highDensityHorizontal = true,
-    bool highDensityVertical = true,
-    PosImageFn imageFn = PosImageFn.bitImageRaster,
-  }) {
+      Image image, {
+        PosAlign align = PosAlign.center,
+        bool highDensityHorizontal = true,
+        bool highDensityVertical = true,
+        PosImageFn imageFn = PosImageFn.bitImageRaster,
+      }) {
     List<int> bytes = [];
     // Image alignment
     bytes += setStyles(PosStyles().copyWith(align: align));
