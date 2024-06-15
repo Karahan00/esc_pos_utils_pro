@@ -67,12 +67,7 @@ class Generator {
         .replaceAll(" ", ' ')
         .replaceAll("•", '.');
     if (!isKanji) {
-      if(text.contains("€")) {
-        return ascii.encode(text);
-      }
-      else {
-        return codec.encode(text);
-      }
+      return codec.encode(text);
     } else {
       return Uint8List.fromList(gbk_bytes.encode(text));
     }
